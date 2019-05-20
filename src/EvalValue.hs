@@ -8,13 +8,37 @@ data Value
   = VBool Bool
   | VInt Int
   | VChar Char
+  | VLambda (String, Expr)
   -- ... more
   deriving (Show, Eq)
 
-data Context = Context { -- 可以用某种方式定义上下文，用于记录变量绑定状态
-                          } deriving (Show, Eq)
+data Context = Context { bindings::[(String, Value)],
+                         stack::[(String, Value)]
+                         -- 可以用某种方式定义上下文，用于记录变量绑定状态
+                       } deriving (Show, Eq)
 
 type ContextState a = StateT Context Maybe a
+
+removeOldBinding :: String -> Context -> Context
+removeOldBinding s c = Context { bindings = removeList s $ bindings c
+                                            where removeList s ((n, t):bs) | s == n = removeList s bs
+                                                                           | otherwise = (n, t):(removeList s bs),
+                                 stack = stack c
+                               }
+
+addBinding :: (String, Value) -> Context -> Context
+addBinding (s, v) c = Context { bindings = (s, v):(bindings $ removeOldBinding s c),
+                                stack = stack c
+                              }
+
+findBinding :: String -> Context -> ContextState Value
+findBinding s c = findList s $ bindings c
+                  where findList s ((n, t):bs) | s == n = return t
+                                               | otherwise = findList s bs
+                        findList s [] = lift Nothing
+
+-- pushStack :: (String, Value) -> Context -> Context
+-- pushStack (s, v) c = 
 
 getBool :: Expr -> ContextState Bool
 getBool e = do
@@ -130,13 +154,42 @@ eval (EIf ec et ee) = do
     (VBool True) -> eval et
     (VBool False) -> eval ee
     _ -> lift Nothing
+eval (ELambda (pn, pt) e) = do
+  return (VLambda (pn, e))
+eval (ELet (n, e1) e2) = do
+  v1 <- eval e1
+  context <- get
+  newcontext <- return (addBinding (n, v1) context)
+  put newcontext
+  v2 <- eval e2
+  return v2
+eval (ELetRec f (x, tx) (e1, ty) e2) = do
+  context <- get
+  newcontext <- return (addBinding (f, (VLambda (x, e1))) context)
+  put newcontext
+  v2 <- eval e2
+  return v2
+eval (EVar n) = do
+  context <- get
+  v <- findBinding n context
+  return v
+eval (EApply e1 e2) = do
+  vlamb <- eval e1
+  case vlamb of
+    (VLambda (nl, el)) -> do
+      v2 <- eval e2
+      context <- get
+      newcontext <- return (addBinding (nl, v2) context)
+      put newcontext
+      vl <- eval el
+      return vl
+    _ -> lift Nothing
 -- ... more
 eval _ = undefined
 
 evalProgram :: Program -> Maybe Value
 evalProgram (Program adts body) = evalStateT (eval body) $
-  Context {  } -- 可以用某种方式定义上下文，用于记录变量绑定状态
-
+  Context { bindings=[] } -- 可以用某种方式定义上下文，用于记录变量绑定状态
 
 evalValue :: Program -> Result
 evalValue p = case evalProgram p of

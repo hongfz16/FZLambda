@@ -90,10 +90,31 @@ eval (ELambda (pn, pt) e) = do
   put newcontext
   te <- eval e
   return (TArrow pt te)
+eval (ELet (n, e1) e2) = do
+  t1 <- eval e1
+  context <- get
+  newcontext <- return (addBinding (n, t1) context)
+  put newcontext
+  t2 <- eval e2
+  return t2
+eval (ELetRec f (x, tx) (e1, ty) e2) = do
+  context <- get
+  newcontext <- return (addBinding (f, TArrow tx ty) context)
+  newcontext' <- return (addBinding (x, tx) newcontext)
+  put newcontext'
+  t1 <- eval e1
+  t2 <- eval e2
+  if t1 == ty then return t2 else lift Nothing
 eval (EVar n) = do
   context <- get
   t <- findBinding n context
   return t
+eval (EApply e1 e2) = do
+  t1 <- eval e1
+  t2 <- eval e2
+  case t1 of
+    TArrow t10 t11 -> if t10 == t2 then return t11 else lift Nothing
+    _ -> lift Nothing
   -- ... more
 eval _ = undefined
 
