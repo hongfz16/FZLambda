@@ -637,3 +637,15 @@ tMy_03_EDiv_bad =
   Program [] $ EDiv (EBoolLit True) (EIntLit 0)
 tMy_03_EDiv_bad_type = Nothing
 test_my_simple_03_EDiv = assertEqual (tMy_03_EDiv_bad_type) (EvalType.evalType tMy_03_EDiv_bad)
+
+tMy_complex_01_apply = 
+  Program [] $
+  makeFun ("AddOne", TInt) [("x", TInt)]
+  (
+    EAdd (EVar "x") (EIntLit 1)
+  ) $
+  (EApply (ELambda ("x", TInt) (EApply (EVar "AddOne") (EVar "x"))) (EIntLit 2))
+tMy_complex_01_apply_value = RInt 3
+tMy_complex_01_apply_type = Just TInt
+test_complect_01_apply_value = assertEqual (tMy_complex_01_apply_value) (EvalValue.evalValue tMy_complex_01_apply)
+test_complect_01_apply_type = assertEqual (tMy_complex_01_apply_type) (EvalType.evalType tMy_complex_01_apply)
