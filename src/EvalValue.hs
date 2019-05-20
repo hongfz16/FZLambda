@@ -8,27 +8,20 @@ data Value
   = VBool Bool
   | VInt Int
   | VChar Char
-  | VLambda (String, Expr)
+  | VLambda (String, Expr, Value)
+  | VLambdaOuter (String, Value, Value)
+  | NullValue
   -- ... more
   deriving (Show, Eq)
 
-data Context = Context { bindings::[(String, Value)],
-                         stack::[(String, Value)]
+data Context = Context { bindings::[(String, Value)]
                          -- 可以用某种方式定义上下文，用于记录变量绑定状态
                        } deriving (Show, Eq)
 
 type ContextState a = StateT Context Maybe a
 
-removeOldBinding :: String -> Context -> Context
-removeOldBinding s c = Context { bindings = removeList s $ bindings c
-                                            where removeList s ((n, t):bs) | s == n = removeList s bs
-                                                                           | otherwise = (n, t):(removeList s bs),
-                                 stack = stack c
-                               }
-
 addBinding :: (String, Value) -> Context -> Context
-addBinding (s, v) c = Context { bindings = (s, v):(bindings $ removeOldBinding s c),
-                                stack = stack c
+addBinding (s, v) c = Context { bindings = (s, v):(bindings c)
                               }
 
 findBinding :: String -> Context -> ContextState Value
@@ -37,8 +30,8 @@ findBinding s c = findList s $ bindings c
                                                | otherwise = findList s bs
                         findList s [] = lift Nothing
 
--- pushStack :: (String, Value) -> Context -> Context
--- pushStack (s, v) c = 
+popBinding :: Context -> Context
+popBinding c = Context { bindings = tail $ bindings c}
 
 getBool :: Expr -> ContextState Bool
 getBool e = do
@@ -155,37 +148,110 @@ eval (EIf ec et ee) = do
     (VBool False) -> eval ee
     _ -> lift Nothing
 eval (ELambda (pn, pt) e) = do
-  return (VLambda (pn, e))
+  case e of
+    (ELambda (en, et) ee) -> do
+      ve <- eval e
+      return (VLambdaOuter (pn, ve, NullValue))
+    _ -> return (VLambda (pn, e, NullValue))
 eval (ELet (n, e1) e2) = do
   v1 <- eval e1
   context <- get
   newcontext <- return (addBinding (n, v1) context)
   put newcontext
   v2 <- eval e2
+  aftercontext <- get
+  newaftercontext <- return (popBinding aftercontext)
+  put newaftercontext
   return v2
 eval (ELetRec f (x, tx) (e1, ty) e2) = do
-  context <- get
-  newcontext <- return (addBinding (f, (VLambda (x, e1))) context)
-  put newcontext
-  v2 <- eval e2
-  return v2
+  case e1 of
+    (ELambda (e1n, e1t) e1e) -> do
+      ve1 <- eval e1
+      context <- get
+      newcontext <- return (addBinding (f, (VLambdaOuter (x, ve1, NullValue))) context)
+      put newcontext
+      v2 <- eval e2
+      aftercontext <- get
+      newaftercontext <- return (popBinding aftercontext)
+      put newaftercontext
+      return v2
+    _ -> do
+      context <- get
+      newcontext <- return (addBinding (f, (VLambda (x, e1, NullValue))) context)
+      put newcontext
+      v2 <- eval e2
+      aftercontext <- get
+      newaftercontext <- return (popBinding aftercontext)
+      put newaftercontext
+      return v2
 eval (EVar n) = do
   context <- get
   v <- findBinding n context
   return v
 eval (EApply e1 e2) = do
-  vlamb <- eval e1
-  case vlamb of
-    (VLambda (nl, el)) -> do
-      v2 <- eval e2
+  v2 <- eval e2
+  v1 <- eval e1
+  case v1 of
+    (VLambda (ln, le, lv)) -> do
       context <- get
-      newcontext <- return (addBinding (nl, v2) context)
+      newcontext <- return (addBinding (ln, v2) context)
       put newcontext
-      vl <- eval el
-      return vl
-    _ -> lift Nothing
+      vle <- eval le
+      aftercontext <- get
+      newaftercontext <- return (popBinding aftercontext)
+      put newaftercontext
+      return vle
+    (VLambdaOuter (ln, lev, lv)) -> do
+      tempv <- addLambdaBinding v1 v2
+      case (checkLambda tempv) of
+        False -> return tempv
+        True -> do
+          evaltempv <- evalLambda tempv
+          return evaltempv
 -- ... more
 eval _ = undefined
+
+addLambdaBinding :: Value -> Value -> ContextState Value
+addLambdaBinding (VLambdaOuter (ln, lev, lv)) v = do
+  case lv of
+    NullValue -> return (VLambdaOuter (ln, lev, v))
+    _ -> do
+      inner <- addLambdaBinding lev v
+      return (VLambdaOuter (ln, inner, lv))
+addLambdaBinding (VLambda (ln, le, lv)) v = do
+  case lv of
+    NullValue -> return (VLambda (ln, le, v))
+    _ -> lift Nothing
+
+evalLambda :: Value -> ContextState Value
+evalLambda (VLambdaOuter (evalln, evallev, evallv)) = do
+  context <- get
+  newcontext <- return (addBinding (evalln, evallv) context)
+  put newcontext
+  result <- evalLambda evallev
+  aftercontext <- get
+  newaftercontext <- return (popBinding aftercontext)
+  put newaftercontext
+  return result
+evalLambda (VLambda (evalln, evalle, evallv)) = do
+  context <-get
+  newcontext <- return (addBinding (evalln, evallv) context)
+  put newcontext
+  result <- eval evalle
+  aftercontext <- get
+  newaftercontext <- return (popBinding aftercontext)
+  put newaftercontext
+  return result
+
+checkLambda :: Value -> Bool
+checkLambda (VLambdaOuter (n, ev, v)) =
+  case v of
+    NullValue -> False
+    _ -> checkLambda ev
+checkLambda (VLambda (n, e, v)) =
+  case v of
+    NullValue -> False
+    _ -> True
 
 evalProgram :: Program -> Maybe Value
 evalProgram (Program adts body) = evalStateT (eval body) $
@@ -196,4 +262,7 @@ evalValue p = case evalProgram p of
   Just (VBool b) -> RBool b
   Just (VInt i) -> RInt i
   Just (VChar c) -> RChar c
+  Just (VLambdaOuter (s, ev, v)) -> RInt 10000
+  Just (VLambda (s, e, v)) -> RInt 10001
+  Just (NullValue) -> RInt 10002
   _ -> RInvalid
