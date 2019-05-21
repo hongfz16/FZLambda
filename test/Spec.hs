@@ -647,5 +647,11 @@ tMy_complex_01_apply =
   (EApply (ELambda ("x", TInt) (EApply (EVar "AddOne") (EVar "x"))) (EIntLit 2))
 tMy_complex_01_apply_value = RInt 3
 tMy_complex_01_apply_type = Just TInt
-test_complect_01_apply_value = assertEqual (tMy_complex_01_apply_value) (EvalValue.evalValue tMy_complex_01_apply)
-test_complect_01_apply_type = assertEqual (tMy_complex_01_apply_type) (EvalType.evalType tMy_complex_01_apply)
+test_complex_01_apply_value = assertEqual (tMy_complex_01_apply_value) (EvalValue.evalValue tMy_complex_01_apply)
+test_complex_01_apply_type = assertEqual (tMy_complex_01_apply_type) (EvalType.evalType tMy_complex_01_apply)
+
+tMy_complex_02_dead =
+  Program [] $
+  ELet ("never", makeFun ("foo", TInt) [("x", TInt)] (EAdd (EApply (EVar "foo") (EVar "x")) (EIntLit 1)) (EApply (EVar "foo") (EIntLit 0))) (EAdd (EIntLit 1) (EIntLit 1))
+test_complex_02_dead_value = assertEqual (RInt 2) (EvalValue.evalValue tMy_complex_02_dead)
+test_complex_02_dead_type = assertEqual (Just TInt) (EvalType.evalType tMy_complex_02_dead)
