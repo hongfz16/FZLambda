@@ -14,7 +14,8 @@ data Value
   -- ... more
   deriving (Show, Eq)
 
-data Context = Context { bindings::[(String, Value)]
+data Context = Context { bindings :: [(String, Value)]
+                        ,exprBindings :: [(String, Expr)]
                          -- 可以用某种方式定义上下文，用于记录变量绑定状态
                        } deriving (Show, Eq)
 
@@ -22,16 +23,32 @@ type ContextState a = StateT Context Maybe a
 
 addBinding :: (String, Value) -> Context -> Context
 addBinding (s, v) c = Context { bindings = (s, v):(bindings c)
+                               ,exprBindings = (exprBindings c)
                               }
 
 findBinding :: String -> Context -> ContextState Value
 findBinding s c = findList s $ bindings c
                   where findList s ((n, t):bs) | s == n = return t
                                                | otherwise = findList s bs
-                        findList s [] = lift Nothing
+                        findList s [] = return NullValue
 
 popBinding :: Context -> Context
-popBinding c = Context { bindings = tail $ bindings c}
+popBinding c = Context { bindings = tail $ bindings c
+                        ,exprBindings = (exprBindings c)}
+
+addExpr :: (String, Expr) -> Context -> Context
+addExpr (s, e) c = Context { bindings = (bindings c)
+                            ,exprBindings = (s, e):(exprBindings c)}
+
+findExpr :: String -> Context -> ContextState Expr
+findExpr s c = findList s $ exprBindings c
+               where findList s ((n, e):bs) | s == n = return e
+                                            | otherwise = findList s bs
+                     findList s [] = lift Nothing
+
+popExpr :: Context -> Context
+popExpr c = Context { bindings = (bindings c)
+                     ,exprBindings = tail $ exprBindings c}
 
 getBool :: Expr -> ContextState Bool
 getBool e = do
@@ -154,15 +171,23 @@ eval (ELambda (pn, pt) e) = do
       return (VLambdaOuter (pn, ve, NullValue))
     _ -> return (VLambda (pn, e, NullValue))
 eval (ELet (n, e1) e2) = do
-  v1 <- eval e1
   context <- get
-  newcontext <- return (addBinding (n, v1) context)
+  newcontext <- return (addExpr (n, e1) context)
   put newcontext
   v2 <- eval e2
   aftercontext <- get
-  newaftercontext <- return (popBinding aftercontext)
+  newaftercontext <- return (popExpr aftercontext)
   put newaftercontext
   return v2
+  -- v1 <- eval e1
+  -- context <- get
+  -- newcontext <- return (addBinding (n, v1) context)
+  -- put newcontext
+  -- v2 <- eval e2
+  -- aftercontext <- get
+  -- newaftercontext <- return (popBinding aftercontext)
+  -- put newaftercontext
+  -- return v2
 eval (ELetRec f (x, tx) (e1, ty) e2) = do
   case e1 of
     (ELambda (e1n, e1t) e1e) -> do
@@ -187,7 +212,15 @@ eval (ELetRec f (x, tx) (e1, ty) e2) = do
 eval (EVar n) = do
   context <- get
   v <- findBinding n context
-  return v
+  case v of
+    NullValue -> do
+      e <- findExpr n context
+      ve <- eval e
+      return ve
+    _ -> return v
+  -- context <- get
+  -- v <- findBinding n context
+  -- return v
 eval (EApply e1 e2) = do
   v2 <- eval e2
   v1 <- eval e1
@@ -255,14 +288,15 @@ checkLambda (VLambda (n, e, v)) =
 
 evalProgram :: Program -> Maybe Value
 evalProgram (Program adts body) = evalStateT (eval body) $
-  Context { bindings=[] } -- 可以用某种方式定义上下文，用于记录变量绑定状态
+  Context { bindings=[]
+           ,exprBindings=[] } -- 可以用某种方式定义上下文，用于记录变量绑定状态
 
 evalValue :: Program -> Result
 evalValue p = case evalProgram p of
   Just (VBool b) -> RBool b
   Just (VInt i) -> RInt i
   Just (VChar c) -> RChar c
-  -- Just (VLambdaOuter (s, ev, v)) -> RInt 10000
-  -- Just (VLambda (s, e, v)) -> RInt 10001
-  -- Just (NullValue) -> RInt 10002
+  Just (VLambdaOuter (s, ev, v)) -> RInt 10000
+  Just (VLambda (s, e, v)) -> RInt 10001
+  Just (NullValue) -> RInt 10002
   _ -> RInvalid
