@@ -638,6 +638,12 @@ tMy_03_EDiv_bad =
 tMy_03_EDiv_bad_type = Nothing
 test_my_simple_03_EDiv = assertEqual (tMy_03_EDiv_bad_type) (EvalType.evalType tMy_03_EDiv_bad)
 
+tMy_04_ELetRec = 
+  Program [] $ ELetRec "fact" ("x", TInt) (expr_fact, TInt) (EApply (EVar "fact") (EVar "x"))
+
+tMy_04_ELetRec_value = RInvalid
+tMy_04_ELetRec_type = Nothing
+
 tMy_complex_01_apply = 
   Program [] $
   makeFun ("AddOne", TInt) [("x", TInt)]
@@ -655,3 +661,15 @@ tMy_complex_02_dead =
   ELet ("never", makeFun ("foo", TInt) [("x", TInt)] (EAdd (EApply (EVar "foo") (EVar "x")) (EIntLit 1)) (EApply (EVar "foo") (EIntLit 0))) (EAdd (EIntLit 1) (EIntLit 1))
 test_complex_02_dead_value = assertEqual (RInt 2) (EvalValue.evalValue tMy_complex_02_dead)
 test_complex_02_dead_type = assertEqual (Just TInt) (EvalType.evalType tMy_complex_02_dead)
+
+tMy_complex_03_cover =
+  Program [] $
+  EApply (EApply (ELambda ("x", TInt) $ ELambda ("x", TInt) $ EVar("x")) (EIntLit 1)) (EIntLit 4)
+test_complex_03_cover_value = assertEqual (RInt 4) (EvalValue.evalValue tMy_complex_03_cover)
+test_complex_03_cover_type = assertEqual (Just TInt) (EvalType.evalType tMy_complex_03_cover)
+
+tMy_complex_04_let_cover =
+  Program [] $
+  EApply (ELambda ("x", TInt) (ELet ("x", EIntLit 1) (EVar "x"))) (EIntLit 5)
+test_complex_04_let_cover_value = assertEqual (RInt 1) (EvalValue.evalValue tMy_complex_04_let_cover)
+test_complex_04_let_cover_type = assertEqual (Just TInt) (EvalType.evalType tMy_complex_04_let_cover)
