@@ -640,9 +640,18 @@ test_my_simple_03_EDiv = assertEqual (tMy_03_EDiv_bad_type) (EvalType.evalType t
 
 tMy_04_ELetRec = 
   Program [] $ ELetRec "fact" ("x", TInt) (expr_fact, TInt) (EApply (EVar "fact") (EVar "x"))
-
 tMy_04_ELetRec_value = RInvalid
 tMy_04_ELetRec_type = Nothing
+test_my_simple_04_ELetRec_type = assertEqual (tMy_04_ELetRec_type) (EvalType.evalType tMy_04_ELetRec)
+test_my_simple_04_ELetRec_value = assertEqual (tMy_04_ELetRec_value) (EvalValue.evalValue tMy_04_ELetRec)
+
+tMy_05_Case =
+  Program [ADT "Pair" [("intPair", [TInt, TInt]), ("boolPair", [TBool, TBool])]] $
+  ELet ("x", EApply (EApply (EVar "intPair") (EIntLit 0)) (EIntLit 0)) $ ECase (EVar "x") [
+    (PData "intPair" [(PVar "x1"), (PVar "x2")], EAdd (EVar "x1") (EVar "x2")),
+    (PData "boolPair" [(PVar "b1"), (PVar "b2")], EIntLit 100)
+  ]
+test_my_simple_05_Case_type = assertEqual (Just TInt) (EvalType.evalType tMy_05_Case)
 
 tMy_complex_01_apply = 
   Program [] $

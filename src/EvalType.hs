@@ -68,16 +68,58 @@ isSameComType el er = do
     (TChar, TChar) -> return TChar
     (_, _) -> lift Nothing
 
-generateConstructorTArrow :: String -> [Type] -> Type
-generateConstructorTArrow adtname (ftype:types) = TArrow ftype (generateConstructorTArrow adtname types)
-generateConstructorTArrow adtname [] = TData adtname
+generateConstructorTArrow :: String -> String -> [Type] -> Type
+generateConstructorTArrow adtname conname (ftype:types) = TArrow ftype (generateConstructorTArrow adtname conname types)
+-- generateConstructorTArrow adtname conname [] = TSpecData adtname conname
+generateConstructorTArrow adtname conname [] = TData adtname
+
+findAdtByConstr :: String -> [ADT] -> ContextState String
+findAdtByConstr conname ((ADT name cases):adts) = case isInCases conname cases of
+                                                    True -> return name
+                                                    False -> findAdtByConstr conname adts
+                                                  where isInCases tarname ((con, _):cases)
+                                                          | tarname == con = True
+                                                          | otherwise = isInCases tarname cases
+                                                        isInCases tarname [] = False
+findAdtByConstr conname [] = lift Nothing
+
+findArgsByConstr :: String -> [ADT] -> ContextState [Type]
+findArgsByConstr conname ((ADT name cases):adts) = case isInCases conname cases of
+                                                     True -> getTypes conname cases
+                                                     False -> findArgsByConstr conname adts
+                                                   where isInCases tarname ((con, _):cases)
+                                                           | tarname == con = True
+                                                           | otherwise = isInCases tarname cases
+                                                         isInCases tarname [] = False
+                                                         getTypes tarname ((con, types):cases)
+                                                           | tarname == con = return types
+                                                           | otherwise = getTypes tarname cases
+                                                         getTypes tarname [] = lift Nothing
+findArgsByConstr conname [] = lift Nothing
+
+checkPatternArgs :: [Type] -> [Pattern] -> ContextState Bool
+checkPatternArgs (t:ts) (p:ps) = do
+  case p of
+    PVar x -> checkPatternArgs ts ps
+    _ -> do
+      tp <- getPatternType p
+      if t == tp then (checkPatternArgs ts ps) else return False
+checkPatternArgs [] [] = return True
 
 getPatternType :: Pattern -> ContextState Type -- other than PVar
 getPatternType p = case p of
   PBoolLit b -> return TBool
   PIntLit i -> return TInt
   PCharLit c -> return TChar
-  PData name ps -> return $ TData name
+  PData name ps -> do
+    context <- get
+    adtname <- findAdtByConstr name (adts context)
+    args <- findArgsByConstr name (adts context)
+    valid <- checkPatternArgs args ps
+    case valid of
+      True -> return $ TData adtname
+      False -> lift Nothing
+    -- return $ TData adtname
 
 validatePatternType :: Type -> [(Pattern, Expr)] -> ContextState Type -- validate [p1, p2, ...] and e0 have the same type
 validatePatternType t0 ((p1, e1):cases) = do
@@ -89,8 +131,72 @@ validatePatternType t0 ((p1, e1):cases) = do
       if tp1 == t0 then return t0 else lift Nothing
 validatePatternType t0 [] = return t0
 
+patternContextEval :: String -> [Pattern] -> Expr -> ContextState Type
+patternContextEval consName ps e = do
+  context <- get
+  args <- findArgsByConstr consName (adts context)
+  innerEval args ps e
+  where innerEval (t:ts) (p:ps) e = case p of
+                                      PVar x -> do
+                                        context <- get
+                                        newcontext <- return $ addBinding (x, t) context
+                                        put newcontext
+                                        te <- innerEval ts ps e
+                                        aftercontext <- get
+                                        newaftercontext <- return $ popBinding aftercontext
+                                        put newaftercontext
+                                        return te
+                                      _ -> innerEval ts ps e
+        innerEval [] [] e = eval e
+
+isSameCaseReturnType :: Type -> Type -> [(Pattern, Expr)] -> ContextState Bool
+isSameCaseReturnType targettype pt ((p1, e1):cases) = do
+  case p1 of
+    PVar x -> do
+      context <- get
+      newcontext <- return (addBinding (x, pt) context)
+      put newcontext
+      t1 <- eval e1
+      aftercontext <- get
+      newaftercontext <- return (popBinding aftercontext)
+      put newaftercontext
+      if t1 == targettype then isSameCaseReturnType targettype pt cases else return False
+    PData s ts -> do
+      t1 <- patternContextEval s ts e1
+      if t1 == targettype then isSameCaseReturnType targettype pt cases else return False
+    _ -> do
+      t1 <- eval e1
+      if t1 == targettype then isSameCaseReturnType targettype pt cases else return False
+isSameCaseReturnType targettype pt [] = return True
+
 validateCaseReturnType :: Type -> [(Pattern, Expr)] -> ContextState Type -- pattern type -> cases -> ... / validate e1, e2, have same type and return it
-validateCaseReturnType pt cases = undefined
+validateCaseReturnType pt ((p1, e1):cases) = do
+  case p1 of
+    PVar x -> do
+      context <- get
+      newcontext <- return (addBinding (x, pt) context)
+      put newcontext
+      t1 <- eval e1
+      aftercontext <- get
+      newaftercontext <- return (popBinding aftercontext)
+      put newaftercontext
+      issame <- isSameCaseReturnType t1 pt cases
+      case issame of
+        True -> return t1
+        False -> lift Nothing
+    PData s ts -> do
+      t1 <- patternContextEval s ts e1
+      issame <- isSameCaseReturnType t1 pt cases
+      case issame of
+        True -> return t1
+        False -> lift Nothing
+    _ -> do
+      t1 <- eval e1
+      issame <- isSameCaseReturnType t1 pt cases
+      case issame of
+        True -> return t1
+        False -> lift Nothing
+validateCaseReturnType pt [] = lift Nothing
 
 eval :: Expr -> ContextState Type
 eval (EBoolLit _) = return TBool
@@ -160,13 +266,17 @@ eval (EApply e1 e2) = do
   case t1 of
     TArrow t10 t11 -> if t10 == t2 then return t11 else lift Nothing 
     _ -> lift Nothing
-eval (ECase e0 cases) = undefined
+eval (ECase e0 cases) = do
+  t0 <- eval e0
+  pt <- validatePatternType t0 cases
+  rt <- validateCaseReturnType pt cases
+  return rt
 -- ... more
 -- eval _ = undefined
 
 getAllADT :: [ADT] -> [(String, Type)]
 getAllADT ((ADT name constructors):adts) = (getConstructors name constructors) ++ getAllADT adts
-                                            where getConstructors name ((conname, types):cons) = (conname, generateConstructorTArrow name types):(getConstructors name cons)
+                                            where getConstructors name ((conname, types):cons) = (conname, generateConstructorTArrow name conname types):(getConstructors name cons)
                                                   getConstructors name [] = []
 getAllADT [] = []
 
@@ -174,3 +284,10 @@ evalType :: Program -> Maybe Type
 evalType (Program adts body) = evalStateT (eval body) $
   Context { bindings = getAllADT adts
            ,adts=adts } -- 可以用某种方式定义上下文，用于记录变量绑定状态
+
+-- evalType :: Program -> Maybe Type
+-- evalType p = do
+--   t <- preEvalType p
+--   case t of
+--     TSpecData adtname conname -> Just (TData adtname)
+--     _ -> Just t
