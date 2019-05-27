@@ -16,15 +16,29 @@ data Value
 
 data Context = Context { bindings :: [(String, Value)]
                         ,exprBindings :: [(String, Expr)]
+                        ,pushOrder :: [String]
                          -- 可以用某种方式定义上下文，用于记录变量绑定状态
                        } deriving (Show, Eq)
 
 type ContextState a = StateT Context Maybe a
 
+findVarTopType :: String -> Context -> ContextState String
+findVarTopType target context = innerFind target (pushOrder context) (bindings context) (exprBindings context)
+                                where innerFind target (ft:orders) ((bs, bv):binds) ((es, ee):exprs)
+                                          | ft == "value" = if target == bs then return "value" else innerFind target orders binds ((es, ee):exprs)
+                                          | ft == "expr" = if target == es then return "expr" else innerFind target orders ((bs, bv):binds) exprs
+                                      innerFind target (ft:orders) ((bs, bv):binds) []
+                                          | ft == "value" = if target == bs then return "value" else innerFind target orders binds []
+                                          | ft == "expr" = lift Nothing
+                                      innerFind target (ft:orders) [] ((es, ee):exprs)
+                                          | ft == "value" = lift Nothing
+                                          | ft == "expr" = if target  == es then return "expr" else innerFind target orders [] exprs
+                                      innerFind target [] [] [] = lift Nothing
+
 addBinding :: (String, Value) -> Context -> Context
 addBinding (s, v) c = Context { bindings = (s, v):(bindings c)
                                ,exprBindings = (exprBindings c)
-                              }
+                               ,pushOrder = "value":(pushOrder c)}
 
 findBinding :: String -> Context -> ContextState Value
 findBinding s c = findList s $ bindings c
@@ -34,11 +48,13 @@ findBinding s c = findList s $ bindings c
 
 popBinding :: Context -> Context
 popBinding c = Context { bindings = tail $ bindings c
-                        ,exprBindings = (exprBindings c)}
+                        ,exprBindings = (exprBindings c)
+                        ,pushOrder = tail $ pushOrder c}
 
 addExpr :: (String, Expr) -> Context -> Context
 addExpr (s, e) c = Context { bindings = (bindings c)
-                            ,exprBindings = (s, e):(exprBindings c)}
+                            ,exprBindings = (s, e):(exprBindings c)
+                            ,pushOrder = "expr":(pushOrder c)}
 
 findExpr :: String -> Context -> ContextState Expr
 findExpr s c = findList s $ exprBindings c
@@ -48,7 +64,8 @@ findExpr s c = findList s $ exprBindings c
 
 popExpr :: Context -> Context
 popExpr c = Context { bindings = (bindings c)
-                     ,exprBindings = tail $ exprBindings c}
+                     ,exprBindings = tail $ exprBindings c
+                     ,pushOrder = tail $ pushOrder c}
 
 getBool :: Expr -> ContextState Bool
 getBool e = do
@@ -211,16 +228,15 @@ eval (ELetRec f (x, tx) (e1, ty) e2) = do
       return v2
 eval (EVar n) = do
   context <- get
-  v <- findBinding n context
-  case v of
-    NullValue -> do
+  strtype <- findVarTopType n context
+  case strtype of
+    "expr" -> do
       e <- findExpr n context
       ve <- eval e
       return ve
-    _ -> return v
-  -- context <- get
-  -- v <- findBinding n context
-  -- return v
+    "value" -> do
+      v <- findBinding n context
+      return v
 eval (EApply e1 e2) = do
   v2 <- eval e2
   v1 <- eval e1
@@ -289,14 +305,15 @@ checkLambda (VLambda (n, e, v)) =
 evalProgram :: Program -> Maybe Value
 evalProgram (Program adts body) = evalStateT (eval body) $
   Context { bindings=[]
-           ,exprBindings=[] } -- 可以用某种方式定义上下文，用于记录变量绑定状态
+           ,exprBindings=[]
+           ,pushOrder=[] } -- 可以用某种方式定义上下文，用于记录变量绑定状态
 
 evalValue :: Program -> Result
 evalValue p = case evalProgram p of
   Just (VBool b) -> RBool b
   Just (VInt i) -> RInt i
   Just (VChar c) -> RChar c
-  Just (VLambdaOuter (s, ev, v)) -> RInt 10000
-  Just (VLambda (s, e, v)) -> RInt 10001
-  Just (NullValue) -> RInt 10002
+  -- Just (VLambdaOuter (s, ev, v)) -> RInt 10000
+  -- Just (VLambda (s, e, v)) -> RInt 10001
+  -- Just (NullValue) -> RInt 10002
   _ -> RInvalid
