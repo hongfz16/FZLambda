@@ -26,9 +26,6 @@ data Type
   | TData String
   -- ^代数数据类型。@TData adtName@ 中的 @adtName@ 是该类型的名称。
 
-  | TSpecData String String
-  -- ^代数数据类型某个构造函数对应的类型。@TData adtName [(conName, _)]@ 中的 @adtName conName@ 对应了两个参数
-
   deriving (Show, Eq)
 
 

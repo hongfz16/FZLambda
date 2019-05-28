@@ -662,6 +662,16 @@ tMy_06_Case_bad =
   ]
 test_my_simple_06_Case_bad_type = assertEqual (Nothing) (EvalType.evalType tMy_06_Case_bad)
 
+tMy_07_Case =
+  Program [] $
+  ELet ("x", ECharLit 's') $ ECase (EVar "x") [
+    (PCharLit 'a', EBoolLit False),
+    (PCharLit 's', EBoolLit True),
+    (PCharLit 'z', EBoolLit False)
+  ]
+test_my_simple_07_case_type = assertEqual (Just TBool) (EvalType.evalType tMy_07_Case)
+test_my_simple_07_case_value = assertEqual (RBool True) (EvalValue.evalValue tMy_07_Case)
+
 tMy_complex_01_apply = 
   Program [] $
   makeFun ("AddOne", TInt) [("x", TInt)]
@@ -705,3 +715,42 @@ tMy_complex_05_ELetRec =
   callFun (EVar "inner") [(EApply (EVar "foo") (EIntLit 9)), (EApply (EVar "foo") (EIntLit 2))]
 test_complex_05_ELetRec_type = assertEqual (Just TInt) (EvalType.evalType tMy_complex_05_ELetRec)
 test_complex_05_ELetRec_value = assertEqual (RInt 41) (EvalValue.evalValue tMy_complex_05_ELetRec)
+
+tMy_complex_06_ECase =
+  Program [(ADT "Point" [("makePoint", [TInt, TInt])]), (ADT "Line" [("makeLine", [TData "Point", TData "Point"])])] $
+  ELet ("p0", EApply (EApply (EVar "makePoint") (EIntLit 1)) (EIntLit 2)) $
+  ELet ("p1", EApply (EApply (EVar "makePoint") (EIntLit 3)) (EIntLit 4)) $
+  ELet ("li", EApply (EApply (EVar "makeLine") (EVar "p0")) (EVar "p1")) $
+  ECase (EVar "li") [
+    (PData "makeLine" [(PData "makePoint" [PIntLit 0, PIntLit 2]), (PData "makePoint" [PIntLit 3, PIntLit 4])], EBoolLit False),
+    (PData "makeLine" [(PData "makePoint" [PIntLit 1, PIntLit 0]), (PData "makePoint" [PIntLit 3, PIntLit 4])], EBoolLit False),
+    (PData "makeLine" [(PData "makePoint" [PIntLit 1, PIntLit 2]), (PData "makePoint" [PIntLit 0, PIntLit 4])], EBoolLit False),
+    (PData "makeLine" [(PData "makePoint" [PIntLit 1, PIntLit 2]), (PData "makePoint" [PIntLit 3, PIntLit 0])], EBoolLit False),
+    (PData "makeLine" [(PData "makePoint" [PIntLit 1, PIntLit 2]), (PData "makePoint" [PIntLit 3, PIntLit 4])], EBoolLit True)
+  ]
+test_complex_06_ECase_type = assertEqual (Just TBool) (EvalType.evalType tMy_complex_06_ECase)
+test_complex_06_ECase_value = assertEqual (RBool True) (EvalValue.evalValue tMy_complex_06_ECase)
+
+tMy_complex_07_ECase =
+  Program [(ADT "Point" [("makePoint", [TInt, TInt])]), (ADT "Line" [("makeLine", [TData "Point", TData "Point"])])] $
+  ELet ("p0", EApply (EApply (EVar "makePoint") (EIntLit 1)) (EIntLit 2)) $
+  ELet ("p1", EApply (EApply (EVar "makePoint") (EIntLit 3)) (EIntLit 4)) $
+  ELet ("li", EApply (EApply (EVar "makeLine") (EVar "p0")) (EVar "p1")) $
+  ECase (EVar "li") [
+    (PData "makeLine" [(PData "makePoint" [PIntLit 0, PIntLit 2]), (PData "makePoint" [PIntLit 3, PIntLit 4])], EBoolLit False),
+    (PVar "x", EBoolLit True)
+  ]
+test_complex_07_ECase_type = assertEqual (Just TBool) (EvalType.evalType tMy_complex_07_ECase)
+test_complex_07_ECase_value = assertEqual (RBool True) (EvalValue.evalValue tMy_complex_07_ECase)
+
+tMy_complex_08_ECase =
+  Program [(ADT "Point" [("makePoint", [TInt, TInt])]), (ADT "Line" [("makeLine", [TData "Point", TData "Point"])])] $
+  ELet ("p0", EApply (EApply (EVar "makePoint") (EIntLit 1)) (EIntLit 2)) $
+  ELet ("p1", EApply (EApply (EVar "makePoint") (EIntLit 3)) (EIntLit 4)) $
+  ELet ("li", EApply (EApply (EVar "makeLine") (EVar "p0")) (EVar "p1")) $
+  ECase (EVar "li") [
+    (PData "makeLine" [(PData "makePoint" [PIntLit 0, PIntLit 2]), (PData "makePoint" [PIntLit 3, PIntLit 4])], EIntLit 0),
+    (PData "makeLine" [(PData "makePoint" [PVar "x0", PVar "y0"]), (PData "makePoint" [PVar "x1", PVar "y1"])], EAdd (EAdd (EVar "x0") (EVar "y0")) (EAdd (EVar "x1") (EVar "y1")))
+  ]
+test_complex_08_ECase_type = assertEqual (Just TInt) (EvalType.evalType tMy_complex_08_ECase)
+test_complex_08_ECase_value = assertEqual (RInt 10) (EvalValue.evalValue tMy_complex_08_ECase)

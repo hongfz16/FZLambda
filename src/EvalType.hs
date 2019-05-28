@@ -70,7 +70,6 @@ isSameComType el er = do
 
 generateConstructorTArrow :: String -> String -> [Type] -> Type
 generateConstructorTArrow adtname conname (ftype:types) = TArrow ftype (generateConstructorTArrow adtname conname types)
--- generateConstructorTArrow adtname conname [] = TSpecData adtname conname
 generateConstructorTArrow adtname conname [] = TData adtname
 
 findAdtByConstr :: String -> [ADT] -> ContextState String
@@ -146,6 +145,11 @@ patternContextEval consName ps e = do
                                         newaftercontext <- return $ popBinding aftercontext
                                         put newaftercontext
                                         return te
+                                      PData iconsName ips -> case t of
+                                        TData adtName -> do
+                                          context <- get
+                                          args <- findArgsByConstr iconsName (adts context)
+                                          innerEval (args ++ ts) (ips ++ ps) e
                                       _ -> innerEval ts ps e
         innerEval [] [] e = eval e
 
