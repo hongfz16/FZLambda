@@ -10,6 +10,7 @@ data Value
   | VChar Char
   | VLambda (String, Expr, Value)
   | VLambdaOuter (String, Value, Value)
+  | VData (String, String, [Value], [Type])
   | NullValue
   -- ... more
   deriving (Show, Eq)
@@ -17,6 +18,7 @@ data Value
 data Context = Context { bindings :: [(String, Value)]
                         ,exprBindings :: [(String, Expr)]
                         ,pushOrder :: [String]
+                        ,adts :: [(String, String, [Type])] -- constructor name, adt name, types
                          -- 可以用某种方式定义上下文，用于记录变量绑定状态
                        } deriving (Show, Eq)
 
@@ -33,12 +35,13 @@ findVarTopType target context = innerFind target (pushOrder context) (bindings c
                                       innerFind target (ft:orders) [] ((es, ee):exprs)
                                           | ft == "value" = lift Nothing
                                           | ft == "expr" = if target  == es then return "expr" else innerFind target orders [] exprs
-                                      innerFind target [] [] [] = lift Nothing
+                                      innerFind target [] [] [] = return "adt"
 
 addBinding :: (String, Value) -> Context -> Context
 addBinding (s, v) c = Context { bindings = (s, v):(bindings c)
                                ,exprBindings = (exprBindings c)
-                               ,pushOrder = "value":(pushOrder c)}
+                               ,pushOrder = "value":(pushOrder c)
+                               ,adts = (adts c)}
 
 findBinding :: String -> Context -> ContextState Value
 findBinding s c = findList s $ bindings c
@@ -49,12 +52,14 @@ findBinding s c = findList s $ bindings c
 popBinding :: Context -> Context
 popBinding c = Context { bindings = tail $ bindings c
                         ,exprBindings = (exprBindings c)
-                        ,pushOrder = tail $ pushOrder c}
+                        ,pushOrder = tail $ pushOrder c
+                        ,adts = (adts c)}
 
 addExpr :: (String, Expr) -> Context -> Context
 addExpr (s, e) c = Context { bindings = (bindings c)
                             ,exprBindings = (s, e):(exprBindings c)
-                            ,pushOrder = "expr":(pushOrder c)}
+                            ,pushOrder = "expr":(pushOrder c)
+                            ,adts = (adts c)}
 
 findExpr :: String -> Context -> ContextState Expr
 findExpr s c = findList s $ exprBindings c
@@ -65,7 +70,17 @@ findExpr s c = findList s $ exprBindings c
 popExpr :: Context -> Context
 popExpr c = Context { bindings = (bindings c)
                      ,exprBindings = tail $ exprBindings c
-                     ,pushOrder = tail $ pushOrder c}
+                     ,pushOrder = tail $ pushOrder c
+                     ,adts = (adts c)}
+
+findAdtList :: String -> [(String, String, [Type])] -> ContextState Value
+findAdtList s (a:as) = case a of
+  (consName, adtName, types) -> if s == consName then return (VData (consName, adtName, [], types)) else findAdtList s as
+findAdtList s [] = lift Nothing
+
+
+findAdt :: String -> Context -> ContextState Value
+findAdt s c = findAdtList s (adts c)
 
 getBool :: Expr -> ContextState Bool
 getBool e = do
@@ -237,7 +252,10 @@ eval (EVar n) = do
     "value" -> do
       v <- findBinding n context
       return v
-eval (EApply e1 e2) = do
+    "adt" -> do
+      v <- findAdt n context
+      return v
+eval (EApply e1 e2) = do -- TODO: 这里的实现需要先求出e2，这样不符合惰性求值，因此需要改一改
   v2 <- eval e2
   v1 <- eval e1
   case v1 of
@@ -257,8 +275,48 @@ eval (EApply e1 e2) = do
         True -> do
           evaltempv <- evalLambda tempv
           return evaltempv
+    (VData (consName, adtName, params, types)) -> do
+      vdata <- addParamsToAdt (VData (consName, adtName, params, types)) v2
+      return vdata
+eval (ECase e0 cases) = do
+  v0 <- eval e0
+  matched <- matchCase v0 cases
+  case matched of
+    (PVar s, e1) -> do
+      context <- get
+      newcontext <- return (addBinding (s, v0) context)
+      put newcontext
+      v1 <- eval e1
+      aftercontext <- get
+      newaftercontext <- return (popBinding aftercontext)
+      put newaftercontext
+      return v1
+    (PData consName ps, e1) -> case v0 of
+      (VData (_, _, vs, _)) -> do
+        evalCase vs ps e1
+      _ -> lift Nothing
+    (_, e1) -> eval e1
 -- ... more
-eval _ = undefined
+-- eval _ = undefined
+
+evalCase :: [Value] -> [Pattern] -> Expr -> ContextState Value
+evalCase (v:vs) (p:ps) e = case p of
+  (PVar s) -> do
+    context <- get
+    newcontext <- return (addBinding (s, v) context)
+    put newcontext
+    result <- evalCase vs ps e
+    aftercontext <- get
+    newaftercontext <- return (popBinding aftercontext)
+    put newaftercontext
+    return result
+  (PData consName ips) -> case v of
+    (VData (consName, adtName, ivs, [])) -> evalCase (ivs ++ vs) (ips ++ ps) e
+    _ -> lift Nothing
+  _ -> evalCase vs ps e
+evalCase [] [] e = eval e
+evalCase [] (p:ps) e = lift Nothing
+evalCase (v:vs) [] e = lift Nothing
 
 addLambdaBinding :: Value -> Value -> ContextState Value
 addLambdaBinding (VLambdaOuter (ln, lev, lv)) v = do
@@ -302,11 +360,58 @@ checkLambda (VLambda (n, e, v)) =
     NullValue -> False
     _ -> True
 
+matchParams :: [Pattern] -> [Value] -> Bool
+matchParams (p:ps) (v:vs) = case p of
+  (PBoolLit bp) -> case v of
+                    (VBool bv) -> if bp == bv then matchParams ps vs else False
+                    _ -> False
+  (PIntLit ip) -> case v of
+                    (VInt iv) -> if ip == iv then matchParams ps vs else False
+                    _ -> False
+  (PCharLit cp) -> case v of
+                    (VChar cv) -> if cp == cv then matchParams ps vs else False
+                    _ -> False
+  (PVar s) -> matchParams ps vs
+  (PData consName ips) -> case v of
+                    (VData (vconsName, adtName, params, [])) -> if consName == vconsName then (if matchParams ips params then matchParams ps vs else False) else False
+                    _ -> False
+matchParams [] [] = True
+matchParams [] (v:vs) = False
+matchParams (p:ps) [] = False
+
+matchCase :: Value -> [(Pattern, Expr)] -> ContextState (Pattern, Expr)
+matchCase v0 ((p1, e1):cases) = case p1 of
+  (PBoolLit bp) -> case v0 of
+                    (VBool bv) -> if bp == bv then return (p1, e1) else matchCase v0 cases
+                    _ -> matchCase v0 cases
+  (PIntLit ip) -> case v0 of
+                    (VInt iv) -> if ip == iv then return (p1, e1) else matchCase v0 cases
+                    _ -> matchCase v0 cases
+  (PCharLit cp) -> case v0 of
+                    (VChar cv) -> if cp == cv then return (p1, e1) else matchCase v0 cases
+                    _ -> matchCase v0 cases
+  (PVar s) -> return (p1, e1)
+  (PData consName ps) -> case v0 of
+                    (VData (vconsName, adtName, params, [])) -> if consName == vconsName then (if matchParams ps params then return (p1, e1) else matchCase v0 cases) else matchCase v0 cases
+                    _ -> matchCase v0 cases
+matchCase v0 [] = lift Nothing
+
+addParamsToAdt :: Value -> Value -> ContextState Value
+addParamsToAdt (VData (consName, adtName, params, (t:ts))) v = return $ VData (consName, adtName, (params ++ [v]), ts)
+addParamsToAdt (VData (consName, adtName, _, [])) v = lift Nothing
+
+constructAdt :: [ADT] -> [(String, String, [Type])]
+constructAdt ((ADT adtName cases):as) = (constructCases adtName cases) ++ (constructAdt as)
+                                            where constructCases adtName ((consName, types):cases) = (consName, adtName, types):(constructCases adtName cases)
+                                                  constructCases adtName [] = []
+constructAdt [] = []
+
 evalProgram :: Program -> Maybe Value
 evalProgram (Program adts body) = evalStateT (eval body) $
   Context { bindings=[]
            ,exprBindings=[]
-           ,pushOrder=[] } -- 可以用某种方式定义上下文，用于记录变量绑定状态
+           ,pushOrder=[]
+           ,adts=constructAdt adts } -- 可以用某种方式定义上下文，用于记录变量绑定状态
 
 evalValue :: Program -> Result
 evalValue p = case evalProgram p of

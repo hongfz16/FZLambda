@@ -371,12 +371,12 @@ tRaw_00_aplusb =
   ) $
 
   ELet ("a", EIntLit 1) $
-  ELet ("b", EIntLit 2) $
-  ELet ("c", EIntLit 3) $
+  ELet ("b", EIntLit 20) $
+  ELet ("c", EIntLit 300) $
   ELet ("d", callFun (EVar "solution") [EVar "b", EVar "c"]) $
-  callFun (EVar "solution") [EVar "a", EVar "d"]
+  callFun (EVar "solution") [EVar "d", EVar "d"]
 
-tRaw_00_aplusb_value = RInt 6
+tRaw_00_aplusb_value = RInt 640
 tRaw_00_aplusb_type = Just TInt
 
 
@@ -647,11 +647,20 @@ test_my_simple_04_ELetRec_value = assertEqual (tMy_04_ELetRec_value) (EvalValue.
 
 tMy_05_Case =
   Program [ADT "Pair" [("intPair", [TInt, TInt]), ("boolPair", [TBool, TBool])]] $
-  ELet ("x", EApply (EApply (EVar "intPair") (EIntLit 0)) (EIntLit 0)) $ ECase (EVar "x") [
+  ELet ("x", EApply (EApply (EVar "intPair") (EIntLit 2)) (EIntLit 3)) $ ECase (EVar "x") [
     (PData "intPair" [(PVar "x1"), (PVar "x2")], EAdd (EVar "x1") (EVar "x2")),
     (PData "boolPair" [(PVar "b1"), (PVar "b2")], EIntLit 100)
   ]
 test_my_simple_05_Case_type = assertEqual (Just TInt) (EvalType.evalType tMy_05_Case)
+test_my_simple_05_Case_value = assertEqual (RInt 5) (EvalValue.evalValue tMy_05_Case)
+
+tMy_06_Case_bad =
+  Program [ADT "Pair" [("intPair", [TInt, TInt]), ("boolPair", [TBool, TBool])]] $
+  ELet ("x", EApply (EApply (EVar "intPair") (EIntLit 2)) (EIntLit 3)) $ ECase (EVar "x") [
+    (PIntLit 0, EIntLit 0),
+    (PData "boolPair" [(PVar "b1"), (PVar "b2")], EIntLit 100)
+  ]
+test_my_simple_06_Case_bad_type = assertEqual (Nothing) (EvalType.evalType tMy_06_Case_bad)
 
 tMy_complex_01_apply = 
   Program [] $
@@ -682,3 +691,17 @@ tMy_complex_04_let_cover =
   EApply (ELambda ("x", TInt) (ELet ("x", EIntLit 1) (EVar "x"))) (EIntLit 5)
 test_complex_04_let_cover_value = assertEqual (RInt 1) (EvalValue.evalValue tMy_complex_04_let_cover)
 test_complex_04_let_cover_type = assertEqual (Just TInt) (EvalType.evalType tMy_complex_04_let_cover)
+
+tMy_complex_05_ELetRec =
+  Program [] $
+  makeFun ("foo", TInt) [("x", TInt), ("y", TInt)]
+  (
+    EAdd (EVar "x") (EVar "y")
+  ) $
+  makeFun ("inner", TInt) [("x", TArrow TInt TInt), ("y", TArrow TInt TInt)]
+  (
+    EAdd (EApply (EVar "x") (EIntLit 13)) (EApply (EVar "y") (EIntLit 17))
+  ) $
+  callFun (EVar "inner") [(EApply (EVar "foo") (EIntLit 9)), (EApply (EVar "foo") (EIntLit 2))]
+test_complex_05_ELetRec_type = assertEqual (Just TInt) (EvalType.evalType tMy_complex_05_ELetRec)
+test_complex_05_ELetRec_value = assertEqual (RInt 41) (EvalValue.evalValue tMy_complex_05_ELetRec)
