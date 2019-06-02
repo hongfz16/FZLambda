@@ -30,6 +30,7 @@ library
       AST
       EvalType
       EvalValue
+      LambdaParser
   other-modules:
       Paths_fpproject
   hs-source-dirs:
@@ -40,6 +41,7 @@ library
     , containers
     , mtl
     , megaparsec
+    , parser-combinators
   default-language: Haskell2010
 
 executable fpproject-exe

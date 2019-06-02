@@ -24,6 +24,7 @@ dependencies:
 - HTF
 - mtl
 - containers
+- megaparsec
 
 library:
   source-dirs: src

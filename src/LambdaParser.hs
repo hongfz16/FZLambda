@@ -31,6 +31,9 @@ parens = between (symbol "(") (symbol ")")
 integer :: Parser Int
 integer = lexeme L.decimal
 
+signedInteger :: Parser Int
+signedInteger = L.signed sc integer
+
 charLiteral :: Parser Char
 charLiteral = between (char '\'') (char '\'') L.charLiteral
 
@@ -81,15 +84,15 @@ dataTypeParser = do
     return $ TData adtName
 
 lambdaParser :: Parser Expr
-lambdaParser = between sc eof expr
+lambdaParser = between sc eof infixExpr
 
 expr :: Parser Expr
-expr = parens expr
+expr = parens infixExpr
     <|> boolLit
     <|> intLit
     <|> charLit
     <|> notExpr
-    <|> infixExpr
+    -- <|> infixExpr
     <|> ifExpr
     <|> lambdaExpr
     <|> letExpr
@@ -99,22 +102,19 @@ expr = parens expr
     <|> caseExpr
 
 boolLit :: Parser Expr
-boolLit = parens boolLit
-    <|> (EBoolLit True <$ rword "true")
+boolLit = (EBoolLit True <$ rword "true")
     <|> (EBoolLit False <$ rword "false")
 
 intLit :: Parser Expr
-intLit = parens intLit
-    <|> EIntLit <$> integer
+intLit = EIntLit <$> signedInteger
 
 charLit :: Parser Expr
-charLit = parens charLit
-    <|> ECharLit <$> charLiteral
+charLit = ECharLit <$> charLiteral
 
 notExpr :: Parser Expr
 notExpr = do
     rword "not"
-    e <- expr
+    e <- infixExpr
     return $ ENot e
 
 infixExpr :: Parser Expr
@@ -139,11 +139,11 @@ ops =
 ifExpr :: Parser Expr
 ifExpr = do
     rword "if"
-    e1 <- expr
+    e1 <- infixExpr
     rword "then"
-    e2 <- expr
+    e2 <- infixExpr
     rword "else"
-    e3 <- expr
+    e3 <- infixExpr
     return $ EIf e1 e2 e3
 
 lambdaExpr :: Parser Expr
@@ -153,7 +153,7 @@ lambdaExpr = do
     symbol "=>"
     s <- identifier
     symbol "->"
-    e <- expr
+    e <- infixExpr
     return $ ELambda (s, t) e
 
 letExpr :: Parser Expr
@@ -161,9 +161,9 @@ letExpr = do
     rword "let"
     s <- identifier
     symbol ":="
-    es <- expr
+    es <- infixExpr
     rword "in"
-    e <- expr
+    e <- infixExpr
     return $ ELet (s, es) e
 
 letRecExpr :: Parser Expr
@@ -175,9 +175,11 @@ letRecExpr = do
     paramt <- typeParser
     paramn <- identifier
     symbol ")"
-    fe <- expr
+    symbol "{"
+    fe <- infixExpr
+    symbol "}"
     rword "in"
-    e <- expr
+    e <- infixExpr
     return $ ELetRec fn (paramn, paramt) (fe, ft) e
 
 varExpr :: Parser Expr
@@ -188,9 +190,9 @@ varExpr = do
 applyExpr :: Parser Expr
 applyExpr = do
     rword "apply"
-    e1 <- expr
+    e1 <- infixExpr
     rword "to"
-    e2 <- expr
+    e2 <- infixExpr
     return $ EApply e1 e2
 
 caseExpr :: Parser Expr
@@ -200,11 +202,20 @@ main :: IO()
 main = do
     input <- getContents
     parseTest lambdaParser input
-    -- Right e <- return $ runParser lambdaParser "" input
-    -- t <- return $ EvalType.evalType (Program [] e)
-    -- case t of
-    --     Just TBool -> putStrLn "TBool"
-    --     Just TInt -> putStrLn "TInt"
-    --     Just TChar -> putStrLn "TChar"
-    --     Nothing -> putStrLn "Nothing"
+    Right e <- return $ runParser lambdaParser "" input
+    putStrLn "\nEvaluating Type:"
+    t <- return $ EvalType.evalType (Program [] e)
+    print t
+    putStrLn "\nEvaluating Value:"
+    case t of
+        Just TBool -> do
+            r <- return $ EvalValue.evalValue (Program [] e)
+            print r
+        Just TInt -> do
+            r <- return $ EvalValue.evalValue (Program [] e)
+            print r
+        Just TChar -> do
+            r <- return $ EvalValue.evalValue (Program [] e)
+            print r
+        _ -> putStrLn "Stop evaluating value!"
 
