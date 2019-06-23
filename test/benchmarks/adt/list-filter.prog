@@ -1,0 +1,10 @@
+let rec filter (p: int -> bool) (xs: [int]): [int] =
+	match xs with
+		[] => []
+	  | x::xs' => if p x then x::filter p xs'
+	  			  else filter p xs'
+in let rec sum (xs: [int]): int =
+	match xs with
+		[] => 0
+	  | x::xs' => x + sum xs'
+in sum (filter (fun (x: int) => x % 2 = 0) [100, -98, 43, -5, 23, 8])

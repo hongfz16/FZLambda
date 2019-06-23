@@ -1,0 +1,5 @@
+let rec length (xs: [char]): int =
+	match xs with
+		[] => 0
+	  | _::xs' => 1 + length xs'
+in length "this is a test string"

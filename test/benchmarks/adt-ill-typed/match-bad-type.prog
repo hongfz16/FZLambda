@@ -1,0 +1,5 @@
+let n = 10 in
+match n with
+    's' => 1
+(*  ^ char pattern found, but s has type int *)
+  | others => -1

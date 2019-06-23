@@ -1,0 +1,44 @@
+type expr = C int
+          | Add expr expr
+          | Sub expr expr
+          | Mul expr expr
+          | Div expr expr
+          | Mod expr expr
+type result = Ok int | Err string
+;
+let add = fun (x: int) (y: int) => x + y in
+let sub = fun (x: int) (y: int) => x - y in
+let mul = fun (x: int) (y: int) => x * y in
+let mod = fun (x: int) (y: int) => x % y in
+let helper = 
+    fun (r1: result) (r2: result) (op: int -> int -> int) =>
+      match r1 with
+           Ok n1 => (match r2 with
+                        Ok n2 => Ok (op n1 n2)
+                      | Err s => Err s)
+         | Err s => Err s
+in
+let rec eval (e: expr): result =
+    match e with
+        C n => Ok n
+      | Add e1 e2 => helper (eval e1) (eval e2) add
+      | Sub e1 e2 => helper (eval e1) (eval e2) sub
+      | Mul e1 e2 => helper (eval e1) (eval e2) mul
+      | Div e1 e2 => 
+            (match eval e2 with
+                  Ok 0 => Err "division by zero"
+                | Ok n2 => (match eval e1 with
+                              Ok n1 => Ok (n1 / n2)
+                            | Err s => Err s)
+                | Err s => Err s)
+      | Mod e1 e2 => helper (eval e1) (eval e2) mod
+in let test1 = match eval (Add (Sub (C 2) (C (-5))) (Mul (C 4) (C (-9)))) with
+      Ok n => n = -29
+    | _ => false
+in let test2 = match eval (Mod (Div (C 100) (C 3)) (C 20)) with
+      Ok 13 => true
+    | _ => false
+in let test3 = match eval (Div (C 10) (Sub (C 4) (C 4))) with
+      Err "division by zero" => true
+    | _ => false
+in test1 && test2 && test3

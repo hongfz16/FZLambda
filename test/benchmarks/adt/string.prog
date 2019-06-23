@@ -1,0 +1,13 @@
+let rec eq (s1: string) (s2: string): bool =
+    match s1 with
+        [] => (match s2 with
+                   [] => true
+                  | _ => false)
+      | x::xs => (match s2 with
+                    x'::xs' => if x = x' then eq xs xs' else false
+                  | _ => false)
+in let rec concat (s1: string) (s2: string): string =
+    match s1 with
+        [] => s2
+      | x::s1' => x :: concat s1' s2
+in eq (concat "Hello, " "Haml!") "Hello, Haml!"

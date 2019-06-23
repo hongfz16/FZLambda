@@ -1,0 +1,2 @@
+let rec test (x: bool): bool = x || test false in
+test true

@@ -1,0 +1,12 @@
+let empty = fun (xs: [int]) =>
+	match xs with
+		[] => true
+	  | _ => false
+in let rec filter (p: int -> bool) (xs: [int]): [int] =
+	match xs with
+		[] => []
+	  | x::xs' => if p x then x::filter p xs'
+	  			  else filter p xs'
+in let exists = fun (p: int -> bool) (xs: [int]) =>
+	not (empty (filter p xs))
+in exists (fun (x: int) => x >= 0) [-1, -2, -3]

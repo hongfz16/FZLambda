@@ -1,0 +1,6 @@
+let xs = [1,2,3] in
+match xs with
+	[] => false
+  | 1::2::[] => false
+  | 1::2::3::[] => true
+  | _ => false

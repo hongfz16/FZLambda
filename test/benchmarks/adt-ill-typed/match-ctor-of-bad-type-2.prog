@@ -1,0 +1,8 @@
+type my_type1 = A int int | B char char
+type my_type2 = C int
+;
+let x = A 1 1 in
+match x with
+(*    ^  has type my_type1, thus its pattern must also be of my_type1 *)
+    A n1 n2 => n1 = n2
+  | C _ => false

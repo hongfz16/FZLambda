@@ -1,0 +1,17 @@
+let xs = []::[2]::[-1]::[]
+in let rec sum (xs: [int]): int =
+	match xs with
+		[] => 0
+	  | x::xs' => x + sum xs'
+in let rec map (f: [int] -> int) (xs: [[int]]): [int] =
+	match xs with
+		[] => []
+	  | x::xs' => f x :: map f xs'
+in let sum' =
+	fun (xs: [[int]]) => sum (map sum xs)
+in match [xs,xs] with
+	[] => false
+  | [_] => false
+  | [a, b] => sum' a = 1 && sum' b = 1
+  | [_, _] => false
+  | _ => false

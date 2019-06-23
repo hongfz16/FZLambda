@@ -1,0 +1,11 @@
+type option = Some int | None
+;
+let rec map (f: int -> int) (opt: option): option =
+    match opt with
+        Some n => Some (f n)
+      | None => None
+in let f = map (fun (x: int) => x - 10)
+in let test1 = f (Some 233)
+in let test2 = f None
+in (match test1 with Some 223 => true | _ => false)
+&& (match test2 with None => true | _ => false)

@@ -1,0 +1,18 @@
+type expr = C int
+          | Add expr expr
+          | Sub expr expr
+          | Mul expr expr
+          | Div expr expr
+          | Mod expr expr
+;
+let rec eval (e: expr): int =
+    match e with
+        C n => n
+      | Add e1 e2 => eval e1 + eval e2
+      | Sub e1 e2 => eval e1 - eval e2
+      | Mul e1 e2 => eval e1 * eval e2
+      | Div e1 e2 => eval e1 / eval e2
+      | Mod e1 e2 => eval e1 % eval e2
+in let test1 = eval (Add (Sub (C 2) (C (-5))) (Mul (C 4) (C (-9)))) = -29
+in let test2 = eval (Mod (Div (C 100) (C 3)) (C 20)) = 13
+in test1 && test2

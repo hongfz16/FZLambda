@@ -1,0 +1,13 @@
+type option = Some int | None
+;
+let safe_div = fun (n1: int) (n2: int) =>
+    match n2 with
+        0 => None
+      | _ => Some (n1 / n2)
+in let test1 = match safe_div 10 5 with
+        Some 2 => true
+      | _ => false
+in let test2 = match safe_div 9 0 with
+        None => true
+      | _ => false
+in test1 && test2

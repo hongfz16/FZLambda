@@ -1,0 +1,7 @@
+type my_type1 = A int int | B int char
+;
+let x = A 10 10 in
+match x with
+    A n1 n2 => n1 + n2
+  | B n c => n - c
+(*               ^ int expected, but char found *)

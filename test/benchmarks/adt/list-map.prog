@@ -1,0 +1,9 @@
+let rec map (f: int -> int) (xs: [int]): [int] =
+	match xs with
+		[] => []
+	  | x::xs' => f x :: map f xs'
+in let rec sum (xs: [int]): int =
+	match xs with
+		[] => 0
+	  | x::xs' => x + sum xs'
+in sum (map (fun (x: int) => x + x + x) [0, -3, 9])

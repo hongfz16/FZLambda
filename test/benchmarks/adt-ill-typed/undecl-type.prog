@@ -1,0 +1,4 @@
+type Hello = Hello foo
+(*                 ^ undeclared type *)
+;
+fun (x: Hello) => x

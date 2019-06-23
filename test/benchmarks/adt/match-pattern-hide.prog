@@ -1,0 +1,5 @@
+type int_pair = P int int
+;
+let p = P 10 20 in
+match p with P x x => x + x (* = 40 *)
+(*               ^ shadows the previous x *)

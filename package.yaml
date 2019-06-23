@@ -25,6 +25,7 @@ dependencies:
 - mtl
 - containers
 - megaparsec
+- tasty
 
 library:
   source-dirs: src

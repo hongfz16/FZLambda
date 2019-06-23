@@ -1,0 +1,7 @@
+let rec gcd (a: int): int -> int = 
+    (fun (b: int) => if a = b then a 
+                     else if a > b then gcd (a - b) b 
+                     else gcd (b - a) a) in 
+let rec solution (a: int): int -> int = 
+    (fun (b: int) => let c = gcd a b in a * b / c) in 
+solution 27 36

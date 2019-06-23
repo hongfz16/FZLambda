@@ -1,0 +1,11 @@
+type my_type1 = A int int
+;
+let v1 = A 10 20 in
+let v2 = A 30 40 in
+(match v1 with
+    A x 20 => 20
+) + (
+match v1 with
+    A y 40 => x + y
+(*            ^ undeclared *)
+)

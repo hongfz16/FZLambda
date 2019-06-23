@@ -1,0 +1,14 @@
+let rec length (xs: [int]): int =
+	match xs with
+		[] => 0
+	  | _::xs' => 1 + length xs'
+in let rec filter (p: int -> bool) (xs: [int]): [int] =
+	match xs with
+		[] => []
+	  | x::xs' => if p x then x::filter p xs'
+	  			  else filter p xs'
+in let forall =
+	fun (p: int -> bool) =>
+		fun (xs: [int]) =>
+			length (filter p xs) = length xs
+in forall (fun (x: int) => x > 0) [1, 2, 3]

@@ -1,0 +1,7 @@
+type my_type1 = A int int
+;
+let v = A 10 20 in
+match v with
+    A 10 x => x
+  | A y 20 => x + y
+(*            ^ undeclared *)

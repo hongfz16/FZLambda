@@ -1,0 +1,4 @@
+type Hello = Hello int
+;
+Hello' 10
+(*   ^ undeclared constructor *)

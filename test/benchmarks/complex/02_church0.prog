@@ -1,0 +1,22 @@
+let zero = 
+    (fun (f: int -> int) => fun (x: int) => x) in 
+let succ = 
+    (fun (n: (int -> int) -> int -> int) => 
+        fun (f: int -> int) => fun (x: int) => f (n f x)) in 
+let plus = 
+    (fun (a: (int -> int) -> int -> int) => 
+        fun (b: (int -> int) -> int -> int) => 
+            fun (f: int -> int) => fun (x: int) => 
+                let af = a f in let bf = b f in af (bf x)) in 
+let mult = 
+    (fun (a: (int -> int) -> int -> int) => 
+        fun (b: (int -> int) -> int -> int) => 
+            fun (f: int -> int) => 
+                b (a f)) in
+let f = (fun (x: int) => x + 1) in 
+let one = succ zero in 
+let two = succ one in 
+let three = succ two in 
+let five = plus two three in 
+let six = mult two three in 
+six f 0 + five f 0

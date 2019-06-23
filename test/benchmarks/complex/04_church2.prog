@@ -1,0 +1,7 @@
+let zero = (fun (f: int -> int) => fun (x: int) => x) in 
+let succ = (fun (n: (int -> int) -> int -> int) => 
+    fun (f: int -> int) => fun (x: int) => f (n f x)) in 
+let mult = (fun (a: (int -> int) -> int -> int) => 
+    fun (b: (int -> int) -> int -> int) => 
+        fun (f: int -> bool) => b (a f)) in 
+mult
