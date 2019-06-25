@@ -754,3 +754,24 @@ tMy_complex_08_ECase =
   ]
 test_complex_08_ECase_type = assertEqual (Just TInt) (EvalType.evalType tMy_complex_08_ECase)
 test_complex_08_ECase_value = assertEqual (RInt 10) (EvalValue.evalValue tMy_complex_08_ECase)
+
+tMy_complex_09_ECase =
+  Program [ADT "[int]" [("[]@int",[]),("::@int",[TInt,TData "[int]"])]] $
+  (ELetRec "length" ("xs",TData "[int]")
+    (ECase (EVar "xs") [
+        (PData "[]@int" [],EIntLit 0),
+        (PData "::@int" [PVar "_",PVar "xs'"],EAdd (EIntLit 1) (EApply (EVar "length") (EVar "xs'")))
+      ],TInt)
+    (ELetRec "filter" ("p",TArrow TInt TBool) 
+      (ELambda ("xs",TData "[int]")
+        (ECase (EVar "xs") [
+          (PData "[]@int" [],EVar "[]@int"),
+          (PData "::@int" [PVar "x",PVar "xs'"],EIf (EApply (EVar "p") (EVar "x")) (EApply (EApply (EVar "::@int") (EVar "x")) (EApply (EApply (EVar "filter") (EVar "p")) (EVar "xs'"))) (EApply (EApply (EVar "filter") (EVar "p")) (EVar "xs'")))
+        ]),
+        TArrow (TData "[int]") (TData "[int]"))
+      (ELet ("forall",ELambda ("p",TArrow TInt TBool) (ELambda ("xs",TData "[int]") (EEq (EApply (EVar "length") (EApply (EApply (EVar "filter") (EVar "p")) (EVar "xs"))) (EApply (EVar "length") (EVar "xs")))))
+        (EApply (EApply (EVar "forall") (ELambda ("x",TInt) (EGt (EVar "x") (EIntLit 0)))) (EApply (EApply (EVar "::@int") (EIntLit 1)) (EApply (EApply (EVar "::@int") (EIntLit 2)) (EApply (EApply (EVar "::@int") (EIntLit 3)) (EVar "[]@int"))))))
+    )
+  )
+
+test_complex_10_ECase_type = assertEqual (Just TBool) (EvalType.evalType tMy_complex_09_ECase)

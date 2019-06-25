@@ -5,16 +5,20 @@ import AST
 import Control.Monad.State
 
 data Context = Context { bindings :: [(String, Type)] -- 可以用某种方式定义上下文，用于记录变量绑定状态
-                        ,adts :: [ADT]}
+                        ,adts :: [ADT]
+                        ,logs :: String}
   deriving (Show, Eq)
 
 type ContextState a = StateT Context Maybe a
 
+addlogs :: String -> Context -> Context
+addlogs s c = Context { bindings = bindings c, adts = adts c, logs = logs c ++ s ++ "\n"}
+
 addBinding :: (String, Type) -> Context -> Context
-addBinding (s, t) c = Context { bindings = (s, t):(bindings c), adts = adts c}
+addBinding (s, t) c = Context { bindings = (s, t):(bindings c), adts = adts c, logs = logs c}
 
 popBinding :: Context -> Context
-popBinding c = Context { bindings = tail $ bindings c, adts = adts c }
+popBinding c = Context { bindings = tail $ bindings c, adts = adts c, logs = logs c }
 
 findBinding :: String -> Context -> ContextState Type
 findBinding s c = findList s $ bindings c
@@ -49,6 +53,16 @@ isChar e = do
     TChar -> return TChar
     _ -> lift Nothing
 
+isSameEqTypeType :: Type -> Type -> Bool
+isSameEqTypeType elt ert = do
+  case (elt, ert) of
+    (TBool, TBool) -> True
+    (TInt, TInt) -> True
+    (TChar, TChar) -> True
+    (TArrow t1 t2, TArrow s1 s2) -> if (isSameEqTypeType t1 s1) && (isSameEqTypeType t2 s2) then True else False
+    (TData d1, TData d2) -> if d1 == d2 then True else False
+    (_, _) -> False
+
 isSameEqType :: Expr -> Expr -> ContextState Type
 isSameEqType el er = do
   elt <- eval el
@@ -57,6 +71,8 @@ isSameEqType el er = do
     (TBool, TBool) -> return TBool
     (TInt, TInt) -> return TInt
     (TChar, TChar) -> return TChar
+    (TArrow t1 t2, TArrow s1 s2) -> if (isSameEqTypeType t1 s1) && (isSameEqTypeType t2 s2) then return $ TArrow t1 t2 else lift Nothing
+    (TData d1, TData d2) -> if d1 == d2 then return $ TData d1 else lift Nothing
     (_, _) -> lift Nothing
 
 isSameComType :: Expr -> Expr -> ContextState Type
@@ -224,9 +240,7 @@ eval (EIf ec et ee) = do
   tc <- isBool ec
   tte <- isSameEqType et ee
   case (tc, tte) of
-    (TBool, TBool) -> return TBool
-    (TBool, TInt) -> return TInt
-    (TBool, TChar) -> return TChar
+    (TBool, x) -> return x
 eval (ELambda (pn, pt) e) = do
   context <- get
   newcontext <- return (addBinding (pn, pt) context)
@@ -259,7 +273,13 @@ eval (ELetRec f (x, tx) (e1, ty) e2) = do
   aftercontext' <- get
   newaftercontext' <- return (popBinding aftercontext')
   put newaftercontext'
+
+  context <- get
+  newcontext <- return (addlogs (f ++ " : " ++ (show t1) ++ " : " ++ (show t2)) context)
+  put newcontext
+  
   if t1 == ty then return t2 else lift Nothing
+  -- return t2
 eval (EVar n) = do
   context <- get
   t <- findBinding n context
@@ -287,7 +307,14 @@ getAllADT [] = []
 evalType :: Program -> Maybe Type
 evalType (Program adts body) = evalStateT (eval body) $
   Context { bindings = getAllADT adts
-           ,adts=adts } -- 可以用某种方式定义上下文，用于记录变量绑定状态
+           ,adts=adts
+           ,logs = ""} -- 可以用某种方式定义上下文，用于记录变量绑定状态
+
+getlogs :: Program -> Maybe Context
+getlogs (Program adts body) = execStateT (eval body) $
+  Context {bindings = getAllADT adts
+          ,adts = adts
+          ,logs = ""}
 
 -- evalType :: Program -> Maybe Type
 -- evalType p = do
