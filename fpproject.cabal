@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: eb10cc89c9eee0b2cf0fb02ea3da2500b8604b7c249a665512ecfeab08c44589
+-- hash: 322bee00000095710e445eafb4bb906891006bfcab127243be906c1400951698
 
 name:           fpproject
 version:        0.1.0.0
@@ -39,11 +39,10 @@ library
       HTF
     , base >=4.7 && <5
     , containers
-    , mtl
     , megaparsec
-    , parser-combinators
+    , mtl
     , tasty
-    , tasty-hunit
+    , parser-combinators
   default-language: Haskell2010
 
 executable fpproject-exe
@@ -58,13 +57,18 @@ executable fpproject-exe
     , base >=4.7 && <5
     , containers
     , fpproject
+    , megaparsec
     , mtl
+    , tasty
   default-language: Haskell2010
 
 test-suite fpproject-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      ExamplesADT
+      ExamplesCore
+      Util
       Paths_fpproject
   hs-source-dirs:
       test
@@ -74,7 +78,7 @@ test-suite fpproject-test
     , base >=4.7 && <5
     , containers
     , fpproject
+    , megaparsec
     , mtl
     , tasty
-    , tasty-hunit
   default-language: Haskell2010

@@ -1,6 +1,9 @@
-module LambdaParser (main) where
+module LambdaParser (loop) where
 
+import System.IO
+import Text.Printf
 import Control.Monad (void)
+import Control.Monad.State
 import Control.Monad.Combinators.Expr -- from parser-combinators
 import Data.Void
 import Text.Megaparsec
@@ -43,7 +46,7 @@ rword w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
 rws :: [String] -- list of reserved words
 rws = ["if", "then", "else", "true", "false", "not", "and", "or",
     "lambda", "int", "bool", "char", "arrow", "data", "let", "in",
-    "function", "apply", "to"]
+    "function", "apply", "to", "bind"]
 
 identifier :: Parser String
 identifier = (lexeme . try) (p >>= check)
@@ -86,6 +89,17 @@ dataTypeParser = do
 lambdaParser :: Parser Expr
 lambdaParser = between sc eof infixExpr
 
+bindInfixExpr :: Parser (String, Expr)
+bindInfixExpr = do
+    rword "bind"
+    idenName <- identifier
+    symbol ":="
+    expr <- infixExpr
+    return (idenName, expr)
+
+lambdaBindingParser :: Parser (String, Expr)
+lambdaBindingParser = between sc eof bindInfixExpr
+
 expr :: Parser Expr
 expr = parens infixExpr
     <|> boolLit
@@ -99,7 +113,8 @@ expr = parens infixExpr
     <|> letRecExpr
     <|> varExpr
     <|> applyExpr
-    <|> caseExpr
+    -- <|> caseExpr
+    <|> fail "Syntax Error!"
 
 boolLit :: Parser Expr
 boolLit = (EBoolLit True <$ rword "true")
@@ -197,6 +212,69 @@ applyExpr = do
 
 caseExpr :: Parser Expr
 caseExpr = undefined
+
+prepareTypeBindings :: [(String, Expr)] -> EvalType.Context
+prepareTypeBindings binds = EvalType.Context {
+    EvalType.bindings = getTypeBindings binds [],
+    EvalType.adts = [],
+    EvalType.logs = ""
+} where
+    getTypeBindings ((s, e):binds) bindings =
+        case (evalStateT (EvalType.eval e) $ EvalType.Context {EvalType.bindings = bindings, EvalType.adts = [], EvalType.logs = ""}) of
+            Just t -> getTypeBindings binds $ (s, t):bindings
+            _ -> getTypeBindings binds bindings
+    getTypeBindings [] bindings = bindings
+
+prepareValueBindings :: [(String, Expr)] -> EvalValue.Context
+prepareValueBindings binds = EvalValue.Context {
+    EvalValue.bindings = [],
+    EvalValue.exprBindings = binds,
+    EvalValue.pushOrder = getValueBindings binds [],
+    EvalValue.adts = []
+} where
+    getValueBindings (_:binds) bindings = getValueBindings binds $ "expr":bindings
+    getValueBindings [] bindings = bindings
+
+loop :: [(String, Expr)] -> IO()
+loop binds = do
+    printf "REPL> "
+    hFlush stdout
+    cmd <- getLine
+    case (take 2 cmd) of
+        ":t" -> do
+            -- parseTest lambdaParser $ drop 3 cmd
+            either <- return $ runParser lambdaParser "" $ drop 3 cmd
+            case either of
+                Left _ -> putStrLn "Syntax Error!"
+                Right e -> print $ evalStateT (EvalType.eval e) $ prepareTypeBindings $ reverse binds
+            loop binds
+        ":q" -> do
+            putStrLn "Exiting..."
+        _ -> do
+            case (take 5 cmd) of
+                "bind " -> do
+                    either <- return $ runParser lambdaBindingParser "" cmd
+                    case either of
+                        Left _ -> do
+                            putStrLn "Syntax Error!"
+                            loop binds
+                        Right (s, e) -> do
+                            case evalStateT (EvalType.eval e) $ prepareTypeBindings $ reverse binds of
+                                Just _ -> loop $ (s, e):binds
+                                Nothing -> do
+                                    putStrLn "Type of the Expression is Wrong."
+                                    loop binds
+                _ -> do
+                    either <- return $ runParser lambdaParser "" cmd
+                    case either of
+                        Left _ -> putStrLn "Syntax Error!"
+                        Right e -> do
+                            case evalStateT (EvalValue.eval e) $ prepareValueBindings $ reverse binds of
+                                Just (VBool b) -> print $ RBool b
+                                Just (VInt i) -> print $ RInt i
+                                Just (VChar c) -> print $ RChar c
+                                _ -> print RInvalid
+                    loop binds
 
 main :: IO()
 main = do
