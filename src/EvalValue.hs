@@ -418,6 +418,7 @@ evalValue p = case evalProgram p of
   Just (VBool b) -> RBool b
   Just (VInt i) -> RInt i
   Just (VChar c) -> RChar c
+  Just (VData (s, _, vs, _)) -> RData $ s ++ " " ++ (show vs)
   -- Just (VLambdaOuter (s, ev, v)) -> RInt 10000
   -- Just (VLambda (s, e, v)) -> RInt 10001
   -- Just (NullValue) -> RInt 10002

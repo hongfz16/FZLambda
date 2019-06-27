@@ -1,0 +1,20 @@
+-- 01
+true
+
+-- 02
+40 + 2
+
+-- 03
+'@'!='@'
+
+-- 04
+if false then 42 else 233
+
+-- 05
+lambda int => x -> x + 1
+
+-- 06
+let even := (lambda int => x -> (x % 2 = 0)) in (apply even to 42)
+
+-- 07
+function int fact(int x) {if x = 0 then 1 else x * (apply fact to (x-1))} in (apply fact to 5)

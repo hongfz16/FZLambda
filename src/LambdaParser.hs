@@ -280,7 +280,8 @@ loop binds = do
 
 parser :: IO()
 parser = do
-    input <- getContents
+    -- input <- getContents
+    input <- getLine
     parseTest lambdaParser input
     Right e <- return $ runParser lambdaParser "" input
     putStrLn "\nEvaluating Type:"

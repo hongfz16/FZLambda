@@ -20,7 +20,7 @@
 stack run
 ```
 
-进入程序后输入`parser`按回车，再输入想要测试的语句后，按下`Ctrl-D`表示输入EOF；下面会显示解析的AST，表达式的类型，以及表达式的结果。
+进入程序后输入`parser`按回车，再输入想要测试的语句后，按下回车后，下面会显示解析的AST，表达式的类型，以及表达式的结果。
 
 ### 3. REPL
 
@@ -77,7 +77,7 @@ stack run
 - `EIf`：`if <expr> then <expr> else <expr>`
 - `ELambda`：
   - 文法：`lambda <type> => <identifier> -> <expr>`
-  - 对应的AST：`ELambda (<type>, <identifier>) <expr>`
+  - 对应的AST：`ELambda (<identifier>， <type>) <expr>`
 - `ELet`：
   - 文法：`let <identifier> := <expr1> in <expr2>`
   - 对应的AST：`ELet (<identifier>, <expr1>) <expr2>`
@@ -130,13 +130,17 @@ stack run
 
 这个部分也较为简单，与EvalType差不多，维护一个上下文栈，栈中存放当前上下文变量绑定的表达式，同时用一个结构体存储函数部分应用的结果。
 
+虽然文档中并没有明确说明需要支持惰性求值，测试用例中也没有相关测例，但是该部分还是支持了该特性。
+
 ### 3. ADT
 
 这个部分只需要将ADT的构造函数当成普通函数来处理即可。
 
 ### 4. Parser
 
-Parser部分使用了megapasec库辅助实现。实现起来也没有什么困难，只要按照自定义的文法，对于每一条文法规则写解析函数。在处理中缀表达式的时候有一些困难，因为要实现中缀表达式，该文法就包含了左递归，而megapasec支持的为LL(1)文法，为此本需要消除左递归，但是megapasec的`makeExprParser`函数可以帮助我们消除左递归。
+Parser部分使用了megapasec库辅助实现。实现起来也没有什么困难，只要按照自定义的文法，对于每一条文法规则写解析函数。
+
+在处理中缀表达式的时候有一些困难，因为要实现中缀表达式，该文法就包含了左递归，而megapasec支持的为LL(1)文法，为此本需要消除左递归，但是megapasec的`makeExprParser`函数可以帮助我们消除左递归。
 
 ### 5. REPL
 

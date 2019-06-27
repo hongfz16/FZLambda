@@ -226,4 +226,6 @@ data Result
   | RInvalid
   -- ^不合法的求值结果，包括 1. 求值发生错误；2. 求值结果并非布尔类型、有限精度整数类型、字符类型。
 
+  | RData String
+
   deriving (Show, Eq)
