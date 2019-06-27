@@ -1,4 +1,4 @@
-module LambdaParser (loop) where
+module LambdaParser (loop, parser) where
 
 import System.IO
 import Text.Printf
@@ -250,6 +250,8 @@ loop binds = do
             loop binds
         ":q" -> do
             putStrLn "Exiting..."
+        ":c" -> do
+            loop []
         _ -> do
             case (take 5 cmd) of
                 "bind " -> do
@@ -276,8 +278,8 @@ loop binds = do
                                 _ -> print RInvalid
                     loop binds
 
-main :: IO()
-main = do
+parser :: IO()
+parser = do
     input <- getContents
     parseTest lambdaParser input
     Right e <- return $ runParser lambdaParser "" input

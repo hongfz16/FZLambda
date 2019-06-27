@@ -1,5 +1,6 @@
 module Main where
 
+import System.IO
 import EvalType
 import AST
 import EvalValue
@@ -113,4 +114,16 @@ import LambdaParser
 --     putStrLn $ getFromMaybe $ EvalType.getlogs prog2
 
 main :: IO()
-main = LambdaParser.loop []
+main = do
+    putStrLn ">> Usage: Input \"parser\" and press enter to enter parser mode. Or input \"repl\" to enter REPL mode"
+    hFlush stdout
+    cmd <- getLine
+    case cmd of
+        "parser" -> do
+            putStrLn "Entering parser mode. Please input expression to parser and press Ctrl-D"
+            hFlush stdout
+            parser
+        "repl" -> do
+            putStrLn "Entering REPL mode."
+            hFlush stdout
+            LambdaParser.loop []
